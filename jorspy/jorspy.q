@@ -2,6 +2,10 @@
 script jorspy_startup
 	printf \{'Initializing JORSpy...'}
 	printf \{'created by donnaken15'}
+	FGH3Config sect='JORSpy' 'Debug' #"0x1ca1ff20"=($js_debug)
+	change js_debug = <value>
+	FGH3Config sect='JORSpy' 'InvertWhammy' #"0x1ca1ff20"=($js_invert_whammy)
+	change js_invert_whammy = <value>
 	// load my assets
 	ProfilingStart
 	LoadPak \{'MODS/jorspy.pak' Heap = heap_global_pak}
@@ -26,7 +30,7 @@ script jorspy_startup
 		CreateScreenElement \{ Type = TextElement parent = spy_container font = text_jorspy1 id = js_debuginp text = '---- INPUT TEXT ----' Pos = (70.0,230.0) just = [left center] rgba = [255 255 255 255] Scale = 0.25 alpha = $display_guitar_input z_priority = 10000000 }
 	endif
 	CreateScreenElement \{ Type = TextElement parent = spy_container font = text_jorspy2 id = js_watermark text = '' Pos = (76.0,20.0) just = [left center] rgba = [255 255 255 255] Scale = 0.25 alpha = 0.5 z_priority = 10000000 }
-	FormatText textname = text 'JORSpy %v | donnaken15.tk/FastGH3' v = ($jorspy_mod_info.version)
+	FormatText textname = text 'JORSpy %v | donnaken15.com/FastGH3' v = ($jorspy_mod_info.version)
 	SetScreenElementProps id = js_watermark text = <text>
 	AddParams \{i = 0 button_base = (640.0, 70.0) text_offset = (-0.5, -12.0) btn_text2_scale = 0.24}
 	begin
@@ -76,8 +80,7 @@ script jorspy_startup
 	ExtendCrc <name_base> 'bt' out=text_base
 	ExtendCrc <text_base> 'pc' out=btn_pc_id
 	ExtendCrc <text_base> 'ht' out=btn_ht_id
-	CreateScreenElement { Type = ContainerElement parent = spy_container
-		id = js2Dopen Pos = <button_base> just = [center center] }
+	CreateScreenElement Type = ContainerElement parent = spy_container id = js2Dopen Pos = <button_base> just = [center center]
 	// open sprite
 	CreateScreenElement \{ Type = SpriteElement parent = js2Dopen texture = js_strum id = js2Dopenb rgba = [255 255 255 159] Scale = 1 z_priority = 10000009 }
 	// left side text
@@ -123,12 +126,13 @@ script jorspy_startup
 		if ($current_num_players = 1 && $playing_song = 1)
 			GetSongTimeMs
 			GetDeltaTime \{ignore_slomo}
-			// trying hard to refrain from injecting scripts
+			// trying hard to refrain from injecting code into original scripts
 			why = 0
 			if (<time> - $current_starttime < 1 && <last_time> > <time>)
 				why = 1
 			endif
 			if NOT (<last_starttime> = $current_starttime)
+				last_starttime = ($current_starttime)
 				why = 1
 			endif
 			if (<why> = 1)
@@ -181,7 +185,7 @@ script jorspy_startup
 				AllocArray \{nps_avg_samples set = 0 size = 25}
 				array = ($player1_status.current_song_gem_array)
 				GetArraySize ($<array>)
-				startTime = $current_starttime
+				startTime = ($current_starttime)
 				i = 0
 				begin
 					if ($<array>[<i>] >= <startTime>)
@@ -192,7 +196,6 @@ script jorspy_startup
 				change nps_avg_offset = (<i> / 3)
 				change \{nps_avg_last_capture = 0.0}
 			endif
-			last_starttime = $current_starttime
 			last_time = <time>
 			
 			if NOT (<last_flip> = $player1_status.lefthanded_button_ups)
@@ -221,7 +224,7 @@ script jorspy_startup
 			if (<time> > (<TUPF_i>))
 				TUPF_i = (<time> + (<timer_update_rate> * $current_speedfactor))
 				if (<time> > 0)
-					FormatTime milliseconds (<time> / 1000)
+					format_time milliseconds (<time> / 1000)
 					FormatText textname = text 'TIME: %t, INPUT: %s' t = <timetext> s = $inputtime
 					SetScreenElementProps id = js2D_time text = <text>
 				else
@@ -247,14 +250,14 @@ script jorspy_startup
 				ExtendCrc <text_base> 'ot' out=btn_ot_id
 				ExtendCrc <text_base> 'a' out=btn_a_id
 				if (<hold_pattern> & <check_button>)
-					AddParams \{on = 1 off = 0}
+					on = 1
 					if (<hold>[<i>] = 0)
 						SetArrayElement arrayname=presses index=<i> newvalue=(<presses>[<i>] + 1)
 					endif
 					FormatText textname = text '%d' d = (<presses>[<i>])
 					SetScreenElementProps id = <btn_pc_id> text = <text>
 				else
-					AddParams \{on = 0 off = 1}
+					on = 0
 				endif
 				SetArrayElement arrayname=hold index=<i> newvalue=<on>
 				if (<on> = 1)
@@ -441,6 +444,7 @@ script debug_output
 		// kill me
 		// half working
 		if (<hammer> = 1)
+			//printf \{'- might be strumming before hitting hopo'}
 			change \{js_possibly_strumming_hopo = 2}
 		endif
 	endif
@@ -463,10 +467,12 @@ script debug_output
 		endif
 		if (<hammer> = 1 || <hammer> = 2)
 			if ($js_possibly_strumming_hopo = 2)
+				spyprint \{'strummed before forming hopo pattern'}
 				change js_sh = ($js_sh + 1)
 				change \{js_possibly_strumming_hopo = 0}
 			endif
 			if ($js_possibly_strumming_hopo = 0)
+				//printf \{'- check if hopo is strummed'}
 				change \{js_possibly_strumming_hopo = 1}
 				change js_possibly_strummed_hopo = <strum>
 			endif
@@ -481,6 +487,7 @@ script debug_output
 					i = 0
 					begin
 						if (<strum> & <check_button>)
+							spyprint \{'- got anchor'}
 							SetArrayElement arrayname = js_a globalarray index = <i> newvalue = ($js_a[<i>] + 1)
 							break
 						endif
@@ -519,10 +526,11 @@ script debug_output
 									Increment \{i}
 								repeat 5
 								// check for singular note
-								if (<hopo_chord> = 1)
-									//printf 'possibly anchoring?'
+								if (<hopo_chord> = 1) // wtf did i mean by this
+									spyprint \{' possibly anchoring?'}
 									// save pattern if it has lower frets
 									change \{js_check_anchoring = 1}
+									//change js_anchor_heldpattern = <hold_pattern>
 									change js_anchor_nextnote = <strum>
 								endif
 								//change \{debug_profile_i = 999999999}
@@ -535,12 +543,12 @@ script debug_output
 				Increment \{i}
 			repeat 5
 		endif
-		if ($js_check_anchoring = 1)
-			// check if anchor fret was released
-			if NOT (<hold_pattern> & $js_anchor_nextnote)
-				//printf 'anchor cancelled'
-				change \{js_check_anchoring = 0}
-			endif
+	endif
+	if ($js_check_anchoring = 1)
+		// check if anchor fret was released
+		if NOT (<hold_pattern> & $js_anchor_nextnote)
+			spyprint \{'- anchor cancelled'}
+			change \{js_check_anchoring = 0}
 		endif
 	endif
 	if (<action_mis> = 'MIS1')
@@ -577,6 +585,7 @@ script debug_output
 					//debug_gem_text text = <text> pattern = <original_strum> prefix = "He:"
 					//debug_gem_text text = <text> pattern = $js_possibly_strummed_hopo prefix = "PSH:"
 					//printf <text>
+					spyprint \{'- strum after tapping hopo'}
 					if (<original_strum> = $js_possibly_strummed_hopo || (<hammer> = 1 || <hammer> = 2))
 						change js_sh = ($js_sh + 1)
 					endif
@@ -662,23 +671,13 @@ script log_guitar_input
 	debug_gem_text text = <text> pattern = <original_strum> prefix = "Or: "
 	debug_gem_text text = <text> pattern = <hold_pattern> prefix = "He: "
 	if (<hit_strum> = 1)
-		if (<fake_strum> = 1)
-			FormatText textname = text "%t H " t = <text>
-		else
-			FormatText textname = text "%t S " t = <text>
-		endif
+		Ternary (<fake_strum> = 1) a = 'H' b = 'S'
 	else
-		if (<fake_strum> = 1)
-			FormatText textname = text "%t F " t = <text>
-		else
-			FormatText textname = text "%t . " t = <text>
-		endif
+		Ternary (<fake_strum> = 1) a = 'F' b = '.'
 	endif
-	if (<strummed_before_forming> >= 0.0)
-		FormatText textname = text "%t T " t = <text>
-	else
-		FormatText textname = text "%t	 " t = <text>
-	endif
+	FormatText textname = text "%t %c " t = <text> c = <ternary>
+	Ternary (<strummed_before_forming> >= 0.0) a = 'T' b = ' '
+	FormatText textname = text "%t %c " t = <text> c = <ternary>
 	get_input_debug_text <...>
 	FormatText textname = text "%t%h%m%u%l%i" t = <text> h = <action_hit> m = <action_mis> u = <action_unn> l = <action_tol> i = <input_text>
 	FormatText textname = text "%t :%o:" t = <text> o = ($<player_status>.hammer_on_tolerance)
@@ -770,15 +769,25 @@ script Max \{a = 0 b = 0}
 		return max = <a>
 	endif
 endscript
+script spyprint
+	if IsTrue \{$js_debug}
+		formattext <...> textname = text
+		GetSongTime
+		printf "-- %t -%a" t = <songtime> a = <text>
+	endif
+endscript
 
-js_os = 0
-js_miss = 0
-js_strums = 0
-js_sh = 0
-js_a = [ 0 0 0 0 0 ]
+js_debug = 1
+js_os = 0 // overstrums
+js_miss = 0 // misses
+js_strums = 0 // strum check
+js_sh = 0 // strummed hopos
+js_a = [ 0 0 0 0 0 ] // anchor count for each fret
+// per frame checking variables
 js_possibly_strummed_hopo = 0
 js_possibly_strumming_hopo = 0
 js_check_anchoring = 0
+//js_anchor_heldpattern = 0
 js_anchor_nextnote = 0
 js_check_ghosting = 0
 js_noteindex = 0
@@ -808,7 +817,7 @@ note_hit_delay_samples_iiiiii = []
 note_hit_delay_average = [ 0.0 0.0 0.0 0.0 0.0 0.0 ]
 inputtime = 0
 
-script FormatTime \{0.0}
+script format_time \{0.0}
 	Modulo <#"0x00000000"> mod = 60
 	seconds = <mod>
 	MathFloor (<#"0x00000000"> / 60)
@@ -826,14 +835,20 @@ jorspy_mod_info = {
 	name = 'JORSpy'
 	desc = 'just osu! right? / Player statistics'
 	author = 'donnaken15'
-	version = '0.6--23.04.16'
+	version = '0.62--24.04.24'
 	requires = [
 		'jorspy.pak.xen'
 	]
 	params = [ // for user config, values stored in config.qb
 		// non unique named mods have the filename prefixed on vars
 		{ name = 'js_invert_whammy' default = 0 type = bool
+			ini = [ // implement saving to
+				'JORSpy' 'InvertWhammy' // sect, key
+			]
 			desc = 'Enable if you prefer to have the whammy bar facing outwards.' }
+		{ name = 'js_debug' default = 0 type = bool
+			ini = [ 'JORSpy' 'Debug' ]
+			desc = 'Print important information happening between timed events, requires Logger.' }
 	]
 }
 

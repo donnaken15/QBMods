@@ -1,12 +1,16 @@
 @echo off
-sh ../../../qcomp . ../../../../../DATA/MODS/disabled
+pushd "%~dp0"
+node ..\..\QBC\QBC.js c jorspy.q -g gh3 -o ..\jorspy.qb.xen
 mkdir !cache > NUL
 imggen *.png
-del jorspy_text*.img.xen
-move *.img.xen !cache
-bmfont4ns jorspy_text1.fnt
-move bmf_test.fnt !cache\text_jorspy1.fnt.xen
-bmfont4ns jorspy_text2.fnt
-move bmf_test.fnt !cache\text_jorspy2.fnt.xen
-node "E:\GHWTDE\guitar-hero-sdk\sdk.js" createpak -out ..\..\..\..\..\DATA\MODS\disabled\jorspy.pak.xen !cache
-
+del jorspy_*_0.img.xen /q
+copy *.img.xen !cache /y
+del *.img.xen
+mkfonts
+copy *.fnt.xen !cache /y
+del *.fnt.xen /q
+set "OUT=..\..\..\DATA\MODS\"
+..\..\pakdir !cache ..\jorspy
+copy ..\jorspy.qb.xen "%OUT%" /y
+copy ..\jorspy.pak.xen "%OUT%" /y
+popd
