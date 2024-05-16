@@ -110,7 +110,8 @@ script jorspy_startup
 	CreateScreenElement \{ Type = TextElement parent = spy_container font = text_jorspy1 just = [left top] Scale = 0.5 z_priority = 10000020 id = js2Dnps Pos = (80.0, 170.0) alpha = 0.8 }
 	
 	// >thinking this will be faster because the struct data is prebuilt
-	AddParams \{ timer_update_rate = 16.666666666 last_time = -1.0 last_pattern = 0 last_starttime = 0 dirs = [ up down ] presses = [ 0 0 0 0 0 ] hold = [ 0 0 0 0 0 ] holdtime = [ 0.0 0.0 0.0 0.0 0.0 ] anchors = [ 0 0 0 0 0 ] updowns = [ 0 0 ] overstrums = 0 misses = 0 strums = 0 hammer = 0 strum_hopos = 0 strum_anim = 9999999.9999999 TUPF_i = 0.0 invert_whammy_bar = $js_invert_whammy last_flip = 0}
+	AddParams \{ timer_update_rate = 16.666666666 last_time = -1.0 last_pattern = 0 last_starttime = 0 dirs = [ up down ] presses = [ 0 0 0 0 0 ] hold = [ 0 0 0 0 0 ] holdtime = [ 0.0 0.0 0.0 0.0 0.0 ] anchors = [ 0 0 0 0 0 ] updowns = [ 0 0 ] overstrums = 0 misses = 0 strums = 0 hammer = 0 strum_hopos = 0 strum_anim = 9999999.9999999 TUPF_i = 0.0 last_flip = 0}
+	invert_whammy_bar = ($js_invert_whammy)
 	if (<invert_whammy_bar> = 1)
 		invert_whammy_bar = -11
 	else
@@ -285,7 +286,7 @@ script jorspy_startup
 				Increment \{i}
 			repeat 5
 			if GuitarGetAnalogueInfo controller = ($player1_status.controller)
-				SetScreenElementProps id = js2Dwhammy rot_angle = (19 + (<rightx> * <invert_whammy_bar>))
+				SetScreenElementProps id = js2Dwhammy rot_angle = ((8 + (<invert_whammy_bar> * -1) + (<rightx> * (<invert_whammy_bar>))))
 			endif
 			FormatText textname = text 'OT: %d' d = ($note_hit_delay_average[5])
 			SetScreenElementProps id = js2Doot text = <text>
@@ -467,7 +468,7 @@ script debug_output
 		endif
 		if (<hammer> = 1 || <hammer> = 2)
 			if ($js_possibly_strumming_hopo = 2)
-				spyprint \{'strummed before forming hopo pattern'}
+				spyprint \{' strummed before forming hopo pattern'}
 				change js_sh = ($js_sh + 1)
 				change \{js_possibly_strumming_hopo = 0}
 			endif
@@ -770,13 +771,15 @@ script Max \{a = 0 b = 0}
 	endif
 endscript
 script spyprint
-	if IsTrue \{$js_debug}
-		formattext <...> textname = text
-		GetSongTime
-		printf "-- %t -%a" t = <songtime> a = <text>
+	if not IsTrue \{$js_debug}
+		return
 	endif
+	formattext <...> textname = text
+	GetSongTime
+	printf "-- %t -%a" t = <songtime> a = <text>
 endscript
 
+js_invert_whammy = 0
 js_debug = 1
 js_os = 0 // overstrums
 js_miss = 0 // misses
@@ -824,7 +827,7 @@ script format_time \{0.0}
 	if NOT GotParam \{milliseconds}
 		CastToInteger \{seconds}
 	endif
-	pad <seconds>
+	pad <seconds> count = 6
 	seconds = <pad>
 	pad <floor>
 	FormatText textname = timetext '%m:%s' m = <pad> s = <seconds>
