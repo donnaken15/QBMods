@@ -6,6 +6,7 @@
 script eval_startup
 	//LoadPak \{'MODS/eval.pak'}
 	decompress_eval
+	decompress_help
 	decompress_chars
 	FGH3Config sect='Mods' 'EvalVerbose' #"0x1ca1ff20"=($evalverbose)
 	change evalverbose = <value>
@@ -18,7 +19,7 @@ endscript
 
 eval_mod_info = {
 	name = 'eval'
-	desc = 'QbScript Console and Interpreter, bundled with ConVars'
+	desc = 'QbScript Console and Interpreter, within QbScript, bundled with ConVars'
 	author = 'donnaken15'
 	version = '24.01'
 	params = [ // for user config, values stored in config.qb
@@ -37,10 +38,16 @@ eval_mod_info = {
 // convars
 // =======================================================
 
-
+// todo?: autocomplete lol // i need help
 manual = {}
 script decompress_help // desperate
 	change manual = {
+		exit = {
+			'Exit the engine.' name = 'exit'
+		}
+		quit = {
+			'Exit the engine.' name = 'quit'
+		}
 		help = {
 			'Find help about a convar/concommand.'
 			params = [ { 'script' } ]
@@ -66,19 +73,29 @@ script decompress_help // desperate
 			name = 'sv_speed'
 			cvar = current_speedfactor
 		}
+		alias = {
+			'Alias a command, or script string.'
+			params = [
+				{ 'name' }
+				{ 'script' }
+			]
+			name = 'give'
+		}
 	}
 endscript
+quit=$ExitGameConfirmed
+exit=$ExitGameConfirmed
 script help
 	if NOT GotParam \{#"0x00000000"}
 		help \{help}
 		return
 	endif
 	if NOT ScriptExists <#"0x00000000">
-		printf 'Script does not exist.'
+		printf \{'Script does not exist.'}
 		return
 	endif
-	if NOT StructureContains structure=($manual) <#"0x00000000">
-		printf 'Script does not have information.'
+	if NOT StructureContains structure=$manual <#"0x00000000">
+		printf \{'Script does not have information.'}
 		return
 	endif
 	info = ($manual.<#"0x00000000">)
@@ -93,20 +110,54 @@ script help
 		formattext textname = helptext "%n" n = <name>
 		params = (<info>.params)
 		GetArraySize <params>
-		i = 0
-		begin
-			param = (<params>[<i>])
-			if StructureContains \{structure=param name}
-				if NOT (<param>.name = #"0x00000000")
-					formattext textname = helptext "%s %p =" s = <helptext> p = (<param>.name)
+		if (<array_size> > 0)
+			i = 0
+			begin
+				param = (<params>[<i>])
+				if StructureContains \{structure=param name}
+					if NOT (<param>.name = #"0x00000000")
+						formattext textname = helptext "%s %p =" s = <helptext> p = (<param>.name)
+					endif
 				endif
-			endif
-			formattext textname = helptext "%s <%p>" s = <helptext> p = (<param>.#"0x00000000")
-			Increment \{i}
-		repeat <array_size>
+				formattext textname = helptext "%s <%p>" s = <helptext> p = (<param>.#"0x00000000")
+				Increment \{i}
+			repeat <array_size>
+		endif
 	endif
 	printf "%h" h = <helptext>
 	printf " - %s" s = (<info>.#"0x00000000")
+endscript
+script echo
+	if GotParam \{#"0x00000000"}
+		printf "%a" a = <#"0x00000000">
+	endif
+endscript
+// doskey freaking
+aliases = []
+script alias
+	if not GotParam \{name}
+		goto #" alias list"
+	endif
+	if not GotParam \{#"0xe37e78c5"}
+		goto #" alias list"
+	endif
+	// no functions can suffice to remove or overwrite an existing item,
+	// have fun leaking memory by creating an alias under the same name over and over, or something
+	AddArrayElement array = ($aliases) element = { name = <name> command = <#"0xe37e78c5"> }
+	change aliases = <array>
+endscript
+script #" alias list"
+	printf 'Current alias commands:'
+	array = ($aliases)
+	GetArraySize \{array}
+	if (<array_size> = 0)
+		return
+	endif
+	i = 0
+	begin
+		printf '%s : %c' s = (<array>[<i>].name) c = (<array>[<i>].command)
+		Increment \{i}
+	repeat <array_size>
 endscript
 
 // console command like
@@ -193,6 +244,8 @@ script sv_speed
 	endif
 endscript
 
+/* NOT WORKING WITH 2 PLAYER
+
 script sv_mode \{players = 0}
 	if NOT GotParam \{#"0x00000000"}
 		help \{sv_mode}
@@ -231,6 +284,7 @@ script sv_mode \{players = 0}
 		switch $game_mode
 			//case p2_coop
 			//case p2_career
+			case p2_pro_faceoff
 			case p2_faceoff
 			case p2_battle
 				players = 2
@@ -242,8 +296,13 @@ script sv_mode \{players = 0}
 		endswitch
 	endif
 	change current_num_players = (<players> + 1)
+	old_speed = ($old_speed)
+	destroy_keyboard_input
+	change old_speed = <old_speed>
+	change \{toggle_console = 0}
 	restart_song
 endscript
+*///
 
 script xy \{x=0 y=0}
 	return pair = (((1.0, 0.0) * <x>) + ((0.0, 1.0) * <y>))
@@ -266,6 +325,13 @@ script #"draw base" \{x=640 y=360 just=[center center] parent=root_window alpha=
 	endif
 	RemoveComponent \{x}
 	RemoveComponent \{y}
+	if NOT IsArray \{just}
+		justt = <just>
+		RemoveComponent \{just}
+		just = [center center] // if just is only a qbkey, use it as the horizontal param
+		SetArrayElement arrayname=just index=0 newvalue=<justt>
+		RemoveComponent \{justt}
+	endif
 	CreateScreenElement {
 		type = <type>
 		font = <font>
@@ -295,13 +361,15 @@ script drawsprite \{id=mysprite}
 			texture = sprite_missing
 		endif
 	endif
-	printstruct <...>
 	#"draw base" type = spriteelement <...>
 endscript
 
 script killelement
 	if ScreenElementExists id = <id>
 		DestroyScreenElement <...>
+	endif
+	if ScreenElementExists id = <#"0x00000000">
+		DestroyScreenElement id = <#"0x00000000"> <...>
 	endif
 endscript
 
@@ -313,24 +381,25 @@ endscript
 // =======================================================
 
 
+// fun todo: arrow keys to navigate in the current line, and command history
 
 toggle_console = 0
 might_hold_shift = 0
 console_pause = 1
 script create_keyboard_input
-	EnableInput OFF ($player1_status.controller)
+	//EnableInput OFF ($player1_status.controller)
 	CreateScreenElement {
 		parent = root_window
 		id = console_text
 		text = ""
-		type = textblockelement
+		type = textblockelement // GAME CRASHES IF TEXT IS TOO LONG
 		font = text_a1
-		scale = 1.0
+		scale = 0.7
 		rgba = [ 255 255 255 255 ]
 		just = [ left bottom ]
 		internal_just = [ left bottom ]
-		pos = (72.0, 720.0)
-		dims = (960.0, 320.0)
+		pos = (72.0, 718.0)
+		dims = (1200.0, 620.0)
 		z_priority = 200
 	}
 	update_console_input
@@ -340,13 +409,15 @@ script create_keyboard_input
 		update_slomo
 	endif
 	spawnscriptnow \{check_user_input}
+	spawnscriptnow \{blink_cursor_loop}
 endscript
 script destroy_keyboard_input
-	EnableInput ($player1_status.controller)
+	//EnableInput ($player1_status.controller)
 	if ScreenElementExists \{id = console_text}
 		DestroyScreenElement \{id = console_text}
 	endif
 	KillSpawnedScript \{name = check_user_input}
+	KillSpawnedScript \{name = blink_cursor_loop}
 	change \{console_input = ""}
 	if ($console_pause = 1)
 		change current_speedfactor = ($old_speed)
@@ -354,9 +425,31 @@ script destroy_keyboard_input
 		change old_speed = -1.0
 	endif
 endscript
+//console_history = ""
 script update_console_input
-	formattext textname = con "%t_" t = ($console_input)
+	if NOT ScreenElementExists id = console_text
+		return
+	endif
+	if ($blink_cursor = 1)
+		cursor = "_"
+	else
+		cursor = " "
+	endif
+	formattext textname = con ">%t%c" t = ($console_input) c = <cursor>
 	SetScreenElementProps id = console_text text = <con>
+endscript
+script clear
+	//change \{console_history = ""}
+	//update_console_input
+endscript
+console_cursor = 0
+blink_cursor = 0
+script blink_cursor_loop
+	begin
+		update_console_input
+		change blink_cursor = (1 - $blink_cursor)
+		Wait \{0.1 seconds ignoreslomo}
+	repeat
 endscript
 script check_user_input
 	capslock = 0
@@ -385,6 +478,7 @@ script check_user_input
 							char = ($key_chars_lower.<id>)
 						endif
 					endif
+					change console_cursor = ($console_cursor + 1)
 					change console_input = ($console_input + <char>)
 					update_console_input
 				else
@@ -396,7 +490,9 @@ script check_user_input
 						change console_input = <trim>
 					endif
 					if (<controlNum> = 293) // Enter
-						spawnscriptnow eval params = { ($console_input) }
+						output_log_text "%h" h = ($console_input)
+						//change console_history = ($console_history + "\n" + $console_input)
+						spawnscriptnow eval params = { ($console_input) ignore_slomo = 1 accept_aliases = 1 warn_nonexistent = 1 }
 						change \{console_input = ""}
 					endif
 					update_console_input
@@ -411,7 +507,7 @@ script ord // lol
 		return \{false}
 	endif
 	formattext checksumname = id "%a" a = <#"0x00000000">
-	if StructureContains structure=($key_chars) <id>
+	if StructureContains structure=$key_chars <id>
 		return true char = ($key_chars.<id>)
 	endif
 	return \{false}
@@ -530,7 +626,7 @@ script key_events
 	begin
 		//ProfilingStart
 		//if ($toggle_console = 0)
-		WinPortSioGetControlPress \{deviceNum = 3} //$player1_device // keyboard is always 3
+		WinPortSioGetControlPress \{deviceNum = 3 actionNum = 0} //$player1_device // keyboard is always 3
 		if NOT (<controlNum> = -1)
 			if (<controlNum> = 323) // Tab
 				// emulator moment
@@ -598,7 +694,7 @@ script eval \{'printf \'no command specified\''}
 	printf "] %l" l = <#"0x00000000">
 	if NOT evaltokenizer <#"0x00000000">
 		printf \{'tokenizer did not return successfully'}
-		return false
+		return \{false}
 	endif
 	//printstruct <tokens>
 	//Block
@@ -645,7 +741,12 @@ script eval \{'printf \'no command specified\''}
 							name = (<node>.left_op) value = (<node>.right_op)
 						}
 					case call
-						evalrun (<node>.left_op) params = (<node>.right_op)
+						evalrun {
+							(<node>.left_op) params = (<node>.right_op)
+							ignore_slomo = <ignore_slomo>
+							accept_aliases = <accept_aliases>
+							warn_nonexistent = <warn_nonexistent>
+						}
 						script_locals = { <script_locals> <returned> }
 						script_lastresult = <returned>
 				endswitch
@@ -661,15 +762,56 @@ script eval \{'printf \'no command specified\''}
 	//endif
 	//Block
 	
-	return \{true}
+	return {
+		true
+		locals = <script_locals>
+		result = <script_lastresult>
+	}
 endscript
 
 script evalrun
 	// isolate parameters returned from scripts being called
+	if (<warn_nonexistent> = 1)
+		if SymbolIsCFunc <#"0x00000000">
+		elseif ScriptExists <#"0x00000000">
+		else
+			printf "%w%s" w = 'Warning, cannot find the function to be called: ' s = <#"0x00000000">
+		endif
+	endif
+	RemoveComponent \{warn_nonexistent}
 	if NOT GotParam \{elevated}
+		is_alias = 0
+		if (<accept_aliases> = 1)
+			array = ($aliases)
+			GetArraySize \{array}
+			if (<array_size> > 0)
+				i = (<array_size> -1)
+				begin
+					alias = (<array>[<i>])
+					FormatText checksumname = name "%a" a = (<alias>.name)
+					if (<name> = <#"0x00000000">)
+						alias = (<alias>.command)
+						is_alias = 1
+						break
+					endif
+					i = (<i> -1)
+				repeat <array_size>
+			endif
+			if (<is_alias> = 1)
+				eval <alias> ignore_slomo = <ignore_slomo> accept_aliases = <accept_aliases>
+				return returned = <result>
+			endif
+		endif
+		
 		if NOT GotParam \{params}
 			params = {}
 		endif
+		ExtendCrc <#"0x00000000"> '__' out = ffs
+		if (<ignore_slomo> = 1 & <ffs> = Wait__)
+			// wait by default factors in slomo multiplier, so ignore it for console
+			params = { <params> ignoreslomo }
+		endif
+		RemoveComponent \{ffs}
 		evalrun elevated #" args " = <params> #"  script to run  " = <#"0x00000000">
 		return returned = <returned>
 	else
@@ -916,6 +1058,11 @@ script evalparsestruct \{depth = 0 debug = $evalverbose}
 						tmp = ($<value>)
 						RemoveComponent \{value}
 						value = <tmp>
+					case 14
+						evalparseexpr <#"0x00000000"> token_count = <token_count> i = <i>
+						printstruct <...>
+						target = #"0x00000000"
+						i = <t>
 				endswitch
 				;if (<token>.value = 44)
 				;	passthru = 1
