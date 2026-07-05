@@ -8,7 +8,7 @@ script eval_startup
 	decompress_eval
 	decompress_help
 	decompress_chars
-	FGH3Config sect='Mods' 'EvalVerbose' #"0x1ca1ff20"=($evalverbose)
+	FGH3Config sect='Mods' 'EvalVerbose' #"0x1ca1ff20"=($console_pause)
 	change evalverbose = <value>
 	printf \{'Running autoexec line'}
 	FGH3Config \{sect='Mods' 'AutoExec' #"0x1ca1ff20"="printf 'no autoexec specified!!!!!'"}
@@ -24,12 +24,12 @@ eval_mod_info = {
 	version = '24.01'
 	params = [ // for user config, values stored in config.qb
 		// non unique named mods have the filename prefixed on vars
-		{ name = 'console_pause' default = 1 type = bool
-			ini = [ 'Mods' 'ConsolePause' ]
+		{ default = 1 type = bool ini = [ 'Mods' 'ConsolePause' ]
 			desc = 'Pause game when the console is active.' }
-		{ name = 'evalverbose' default = 0 type = bool
-			ini = [ 'Mods' 'EvalVerbose' ]
+		{ default = 0 type = bool ini = [ 'Mods' 'EvalVerbose' ]
 			desc = 'Print the ongoing process of parsing and executing script text.' }
+		{ default = '' type = string ini = [ 'Mods' 'AutoExec' ]
+			desc = 'Execute line(s) of code upon loading this mod.' }
 	]
 }
 
@@ -61,6 +61,21 @@ script decompress_help // desperate
 			]
 			name = 'give'
 		}
+		hurtme = {
+			'Take health away.'
+			params = [
+				{ amount name = #"0x00000000" }
+				{ player name = player }
+			]
+			name = 'hurtme'
+		}
+		god = {
+			'Become invincible, delude the crowd.'
+			params = [
+				{ player name = player }
+			]
+			name = 'god'
+		}
 		fps = {
 			'Frame rate limiter.'
 			//params = [ { fps } ]
@@ -71,7 +86,7 @@ script decompress_help // desperate
 			'Change speed of the song.'
 			params = [ { speed } ]
 			name = 'sv_speed'
-			cvar = current_speedfactor
+			cvar = old_speed
 		}
 		alias = {
 			'Alias a command, or script string.'
@@ -79,7 +94,7 @@ script decompress_help // desperate
 				{ 'name' }
 				{ 'script' }
 			]
-			name = 'give'
+			name = 'alias'
 		}
 	}
 endscript
@@ -132,7 +147,7 @@ script echo
 		printf "%a" a = <#"0x00000000">
 	endif
 endscript
-// doskey freaking
+// doskey freaking, or source like
 aliases = []
 script alias
 	if not GotParam \{name}
@@ -143,6 +158,7 @@ script alias
 	endif
 	// no functions can suffice to remove or overwrite an existing item,
 	// have fun leaking memory by creating an alias under the same name over and over, or something
+	// JUST MAKE AN OBJECT WITH KEYS STUPID
 	AddArrayElement array = ($aliases) element = { name = <name> command = <#"0xe37e78c5"> }
 	change aliases = <array>
 endscript
@@ -182,7 +198,7 @@ script give \{player = 1}
 			endif
 			return
 	endswitch
-	if NOT ($game_mode = p2_battle)
+	if NOT ($game_mode = p2_battle | $boss_battle = 1)
 		switch <#"0x00000000">
 			case starpower
 				increase_star_power amount = 50.0 player_status = <player_status>
@@ -221,6 +237,44 @@ script give \{player = 1}
 		endswitch
 	endif
 	printf 'unknown item: %i' i = <#"0x00000000">
+endscript
+
+script hurtme \{#"0x00000000" = 1 player = 1}
+	//if NOT GotParam \{#"0x00000000"}
+	//	help \{hurtme}
+	//	return
+	//endif
+	if (<#"0x00000000"> <= 0.0)
+		return
+	endif
+	if (<player> = 2)
+		player_status = player2_status
+	else
+		player_status = player1_status
+	endif
+	value = ($<player_status>.current_health - (<#"0x00000000"> * 0.01))
+	if (<value> <= 0.0)
+		change structurename = <player_status> current_health = 0.0001
+		CrowdDecrease player_status = <player_status>
+	endif
+	change structurename = <player_status> current_health = <value>
+endscript
+
+script god
+	toggle_global \{Cheat_NoFail}
+	if ScreenElementExists \{id=hud2d_rock_bg_nofailp1}
+		SetScreenElementProps \{id=hud2d_rock_bg_nofailp1 alpha=$Cheat_NoFail}
+	endif
+	if ScreenElementExists \{id=hud2d_rock_bg_nofailp2}
+		SetScreenElementProps \{id=hud2d_rock_bg_nofailp2 alpha=$Cheat_NoFail}
+	endif
+	if ScreenElementExists \{id=HUD2D_rock_lights_nofailp1}
+		SetScreenElementProps \{id=HUD2D_rock_lights_nofailp1 alpha=$Cheat_NoFail}
+	endif
+	if ScreenElementExists \{id=HUD2D_rock_lights_nofailp2}
+		SetScreenElementProps \{id=HUD2D_rock_lights_nofailp2 alpha=$Cheat_NoFail}
+	endif
+	printf 'godmode %g' g = ($toggle_text[$Cheat_NoFail])
 endscript
 
 script fps
@@ -398,7 +452,7 @@ script create_keyboard_input
 		rgba = [ 255 255 255 255 ]
 		just = [ left bottom ]
 		internal_just = [ left bottom ]
-		pos = (72.0, 718.0)
+		pos = (110.0, 718.0)
 		dims = (1200.0, 620.0)
 		z_priority = 200
 	}
@@ -489,10 +543,10 @@ script check_user_input
 						trim ($console_input)
 						change console_input = <trim>
 					endif
-					if (<controlNum> = 293) // Enter
+					if (<controlNum> = 293) // Enter (numpad >:(    )
 						output_log_text "%h" h = ($console_input)
 						//change console_history = ($console_history + "\n" + $console_input)
-						spawnscriptnow eval params = { ($console_input) ignore_slomo = 1 accept_aliases = 1 warn_nonexistent = 1 }
+						spawnscriptnow eval params = { ($console_input) ignore_slomo = 1 accept_aliases = 1 warn_nonexistent = 1 print_return = 1 }
 						change \{console_input = ""}
 					endif
 					update_console_input
@@ -740,12 +794,14 @@ script eval \{'printf \'no command specified\''}
 							structure_name = script_locals
 							name = (<node>.left_op) value = (<node>.right_op)
 						}
+						script_lastresult = (<node>.right_op)
 					case call
 						evalrun {
 							(<node>.left_op) params = (<node>.right_op)
 							ignore_slomo = <ignore_slomo>
 							accept_aliases = <accept_aliases>
 							warn_nonexistent = <warn_nonexistent>
+							//print_return = <print_return>
 						}
 						script_locals = { <script_locals> <returned> }
 						script_lastresult = <returned>
@@ -757,9 +813,16 @@ script eval \{'printf \'no command specified\''}
 	repeat <array_size>
 	//printstruct <script_locals>
 	
-	//if NOT (<script_lastresult> = #"  invalid  ")
-	//	printstruct <script_locals>
-	//endif
+	if IsTrue \{$evalverbose}
+		if (<print_return> = 1)
+			if NOT (<script_lastresult> = #"  invalid  ")
+				printstruct {
+					locals = <script_locals>
+					result = <script_lastresult>
+				}
+			endif
+		endif
+	endif
 	//Block
 	
 	return {
@@ -1631,14 +1694,12 @@ script decompress_eval
 	change eval_kw2bytecodes = [ 37 38 39 40 41 60 61 62 63 32 33 57 34 /*35 36*/ ]
 endscript
 
-script indent \{1}
-	if (<#"0x00000000"> = 0)
-		return indent = ''
+script indent \{1 indent = ''}
+	if (<#"0x00000000"> > 0)
+		begin
+			indent = ('    ' + <indent>)
+		repeat <#"0x00000000">
 	endif
-	indent = ''
-	begin
-		indent = (<indent> + '    ')
-	repeat <#"0x00000000">
 	//RemoveComponent \{#"0x00000000"}
 	return indent = <indent>
 endscript
@@ -1663,8 +1724,8 @@ script printtoken \{indent = 0 debug = $evalverbose}
 		//type = (<t>.type)
 	//endif
 	pad <i> count = (3) pad = ' '
-	indent <indent>
-	printf '%n>%i: %v <%t>' n = <indent> i = <pad> t = (<t>.type) v = (<t>.literal)
+	indent <indent> indent = '>'
+	printf '%n%i: %v <%t>' n = <indent> i = <pad> t = (<t>.type) v = (<t>.literal)
 endscript
 
 // :(

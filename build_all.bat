@@ -7,6 +7,7 @@ for %%Q in (*.q) do node ..\QBC\QBC.js c "%%Q" -g gh3
 :: stuff i need to test, or need personally in general
 for %%A in (
 	whammy_120FPS
+	eval
 ) do copy "%%A.qb.xen" "..\..\..\DATA\MODS\%%A.qb.xen" /y >nul
 :: prepackage for the repo just because
 for %%A in (
